@@ -321,7 +321,7 @@ async def on_message(message):
             montant = int(montant)
 
             # Envoi de la requête à l'API Flask
-            response = requests.post('http://localhost:5000/api/ajouter_argent', json={'pseudo': pseudo, 'montant': montant})
+            response = requests.post('https://webslime.onrender.com/api/ajouter_argent', json={'pseudo': pseudo, 'montant': montant})
 
             if response.status_code == 200:
                 await message.channel.send(f"{montant} pièces ont été ajoutées à {pseudo}.")
@@ -339,7 +339,7 @@ async def on_message(message):
             else:
                 pseudo = message.author.display_name  # utilise le nom affiché de l'auteur
 
-            response = requests.get(f'http://localhost:5000/api/solde/{pseudo}')
+            response = requests.get(f'https://webslime.onrender.com/api/solde/{pseudo}')
             if response.status_code == 200:
                 data = response.json()
                 solde = data.get("solde", 0)
@@ -358,7 +358,7 @@ async def on_message(message):
 async def ajouter_joueur(ctx, pseudo: str):
     try:
         # Envoi de la requête à l'API Flask pour ajouter un joueur
-        response = requests.post('http://localhost:5000/api/ajouter_joueur', json={'pseudo': pseudo})
+        response = requests.post('https://webslime.onrender.com/api/ajouter_joueur', json={'pseudo': pseudo})
 
         if response.status_code == 200:
             await ctx.send(f"Joueur {pseudo} ajouté avec succès!")
@@ -371,7 +371,7 @@ async def ajouter_joueur(ctx, pseudo: str):
 async def ajouter(ctx, pseudo: str, montant: int):
     try:
         # Envoi de la requête à l'API Flask pour ajouter de l'argent
-        response = requests.post('http://localhost:5000/api/ajouter_argent', json={'pseudo': pseudo, 'montant': montant})
+        response = requests.post('https://webslime.onrender.com/api/ajouter_argent', json={'pseudo': pseudo, 'montant': montant})
 
         if response.status_code == 200:
             await ctx.send(f"{montant} pièces ont été ajoutées à {pseudo}.")
