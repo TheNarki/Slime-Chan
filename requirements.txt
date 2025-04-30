@@ -1,0 +1,8 @@
+discord.py
+yt-dlp
+google-cloud-dialogflow
+python-dotenv
+ffmpeg-python
+PyNaCl
+flask
+gunicorn
