@@ -5,16 +5,15 @@ import random
 from google.cloud import dialogflow_v2
 from google.oauth2 import service_account
 import json
-from discord import FFmpegPCMAudio, PCMVolumeTransformer
+from discord import FFmpegPCMAudio
 import asyncio
 from discord import app_commands  # Import app_commands pour utiliser les commandes slash
 from dotenv import load_dotenv
-import yt_dlp  
 from flask import Flask
 from flask import Flask, jsonify, request
 import requests  # Import the requests module
 import threading
-from datetime import datetime, time
+from datetime import datetime
 import sqlite3
 
 # Flask app pour garder le bot réveillé
@@ -244,7 +243,7 @@ async def on_message(message):
                     print(f"Fichier d'avatar introuvable : {temp_avatar_file}")
 
                 vc.stop()
-                vc.play(FFmpegPCMAudio(sound_file), after=lambda e: print("Lecture terminée."))
+                vc.play(FFmpegPCMAudio(sound_file), after=lambda _: print("Lecture terminée."))
 
                 await message.channel.send(f"🎵 Son lancé : {os.path.basename(sound_file)}")
 
@@ -334,11 +333,25 @@ async def on_message(message):
                 await message.channel.send("Une erreur est survenue lors de la récupération du solde.")
         except Exception as e:
             await message.channel.send(f"❌ Erreur : {e}")
+@client.event
+async def on_message(message):
+    if message.author.bot:
+        return  # On ignore les bots
+
+    pseudo = message.author.name
+
+    # Vérifie si le compte existe, sinon le crée
+    try:
+        response = requests.post("https://webslime.onrender.com/api/creer_compte", json={"pseudo": pseudo})
+        if response.status_code == 200:
+            print(f"✅ Compte vérifié/créé pour {pseudo}")
+        else:
+            print(f"❌ Erreur API pour {pseudo}: {response.text}")
+    except Exception as e:
+        print(f"Erreur de requête pour {pseudo}: {e}")
 
     # Nécessaire pour les slash commands
     await client.process_commands(message)
-    # Commande pour ajouter un joueur
-@client.command()
 @commands.has_permissions(administrator=True)
 async def ajouter(ctx, pseudo: str, montant: int):
     try:
@@ -369,7 +382,7 @@ async def init_comptes(ctx):
 
     for member in ctx.guild.members:
         if not member.bot:
-            response = requests.post("https://ton-projet.onrender.com/api/creer_compte", json={"pseudo": member.name})
+            response = requests.post("https://webslime.onrender.comm/api/creer_compte", json={"pseudo": member.name})
             if response.status_code == 200:
                 print(f"✅ Compte créé pour {member.name}")
             else:
