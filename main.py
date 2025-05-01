@@ -201,9 +201,9 @@ async def avatar_scheduler():
         now = datetime.now().time()
 
         if now.hour == 21 and now.minute == 0:
-            await change_avatar("avatar/Sleep.png")
+            await change_avatar("Avatar/Sleep.png")
         elif now.hour == 8 and now.minute == 0:
-            await change_avatar("avatar/Jour.png")
+            await change_avatar("Avatar/Jour.png")
 
         await asyncio.sleep(60)  # vérifie toutes les minutes
 
@@ -314,22 +314,6 @@ async def on_message(message):
     if response:
         await message.channel.send(response)
 
-    # Commande `!ajouter`
-    if message.content.startswith("!ajouter"):
-        try:
-            _, pseudo, montant = message.content.split()
-            montant = int(montant)
-
-            # Envoi de la requête à l'API Flask
-            response = requests.post('https://webslime.onrender.com/api/ajouter_argent', json={'pseudo': pseudo, 'montant': montant})
-
-            if response.status_code == 200:
-                await message.channel.send(f"{montant} pièces ont été ajoutées à {pseudo}.")
-            else:
-                await message.channel.send("Une erreur est survenue.")
-        except Exception as e:
-            await message.channel.send(f"❌ Erreur : {e}")
-
         # Commande `!solde`
     if message.content.startswith("!solde"):
         try:
@@ -355,19 +339,7 @@ async def on_message(message):
     await client.process_commands(message)
     # Commande pour ajouter un joueur
 @client.command()
-async def ajouter_joueur(ctx, pseudo: str):
-    try:
-        # Envoi de la requête à l'API Flask pour ajouter un joueur
-        response = requests.post('https://webslime.onrender.com/api/ajouter_joueur', json={'pseudo': pseudo})
-
-        if response.status_code == 200:
-            await ctx.send(f"Joueur {pseudo} ajouté avec succès!")
-        else:
-            await ctx.send(f"Erreur : {response.json()['message']}")
-    except Exception as e:
-        await ctx.send(f"❌ Erreur : {e}")
-# Commande `!ajouter` pour ajouter de l'argent
-@client.command()
+@commands.has_permissions(administrator=True)
 async def ajouter(ctx, pseudo: str, montant: int):
     try:
         # Envoi de la requête à l'API Flask pour ajouter de l'argent
@@ -389,6 +361,117 @@ async def help_command(interaction: discord.Interaction):
 # Lancer l'avatar_scheduler en parallèle
 async def main():
     await client.start(os.getenv("DISCORD_BOT_TOKEN"))
+
+@client.command()
+@commands.has_permissions(administrator=True)
+async def init_comptes(ctx):
+    await ctx.send("🔄 Création des comptes d’économie...")
+
+    for member in ctx.guild.members:
+        if not member.bot:
+            response = requests.post("https://ton-projet.onrender.com/api/creer_compte", json={"pseudo": member.name})
+            if response.status_code == 200:
+                print(f"✅ Compte créé pour {member.name}")
+            else:
+                print(f"❌ Erreur pour {member.name}: {response.text}")
+
+    await ctx.send("✅ Comptes d’économie initialisés pour tous les membres.")
+
+@client.tree.command(name="stop", description="Arrête la musique et vide la file.")
+@commands.guild_only()
+async def stop(interaction: discord.Interaction):
+    try:
+        await interaction.response.defer()
+
+        guild_id = interaction.guild.id
+        voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+
+        if not voice_client or not voice_client.is_connected():
+            await interaction.followup.send("❌ Je ne suis pas connecté à un salon vocal.")
+            return
+
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        # Déconnexion et nettoyage
+        await voice_client.disconnect()
+        music_queues[guild_id] = []
+        await interaction.followup.send("⏹️ Musique arrêtée et file vidée.")
+    except Exception as e:
+        print(f"Erreur : {e}")  # Log interne
+        await interaction.followup.send("❌ Une erreur est survenue.")
+
+@client.tree.command(name="liste", description="Affiche la liste des musiques locales disponibles dans /sounds")
+async def liste(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    # Répertoire des sons locaux
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    SOUNDS_FOLDER = os.path.join(BASE_DIR, "sounds")
+
+    try:
+        files = [f for f in os.listdir(SOUNDS_FOLDER) if f.endswith('.mp3')]
+        if not files:
+            await interaction.followup.send("📁 Aucun fichier .mp3 trouvé dans `/sounds`.")
+            return
+
+        message = "**🎵 Liste des musiques dispo :**\n"
+        message += "\n".join(f"- `{file}`" for file in files)
+
+        await interaction.followup.send(message)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Erreur lors de la lecture du dossier : {e}")
+
+@client.tree.command(name="joue", description="Joue une musique locale depuis le dossier /sounds")
+@app_commands.describe(fichier="Nom du fichier (ex: Rick.mp3)")
+async def joue(interaction: discord.Interaction, fichier: str):
+    await interaction.response.defer()
+
+    # Vérification du fichier
+    file_path = os.path.join(SOUNDS_FOLDER, fichier)
+    if not os.path.isfile(file_path):
+        await interaction.followup.send(f"❌ Le fichier `{fichier}` n'existe pas dans `/sounds`.")
+        return
+
+    # Vérifier si l'utilisateur est dans un salon vocal
+    if not interaction.user.voice or not interaction.user.voice.channel:
+        await interaction.followup.send("❌ Tu dois être connecté à un salon vocal.")
+        return
+
+    voice_channel = interaction.user.voice.channel if interaction.user.voice else None
+    if not voice_channel:
+        await interaction.followup.send("❌ Tu dois être connecté à un salon vocal.")
+        return
+
+    # Connexion
+    voice_client = discord.utils.get(client.voice_clients, guild=interaction.guild)
+    if not voice_client or not voice_client.is_connected():
+        voice_client = await voice_channel.connect()
+    elif voice_client.channel != voice_channel:
+        await voice_client.move_to(voice_channel)
+
+    # Jouer le fichier
+    try:
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        voice_client.play(
+            FFmpegPCMAudio(file_path),
+            after=lambda e: print(f"[DEBUG] Lecture terminée : {e}")
+        )
+
+        await interaction.followup.send(f"🎧 Lecture : `{fichier}`")
+
+        # Attendre que la musique se termine
+        while voice_client.is_playing():
+            await asyncio.sleep(1)
+
+        await voice_client.disconnect()
+        print(f"[DEBUG] Déconnecté de {voice_channel.name}")
+
+    except Exception as e:
+        print(f"Erreur : {e}")  # Log interne
+        await interaction.followup.send("❌ Une erreur est survenue.")
 
 if __name__ == '__main__':
     keep_alive()
